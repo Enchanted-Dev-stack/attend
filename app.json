@@ -36,6 +36,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "5ff46c6a-0028-402f-8f74-b9188ecc1984"
+      }
+    },
+    "owner": "enchanted_dev"
   }
 }
