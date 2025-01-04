@@ -55,50 +55,69 @@ const AnimatedCheckmark = ({ isPresent }) => {
   );
 };
 
-export default function StudentAttendanceList() {
-  const [students, setStudents] = useState(initialStudents);
+export default function StudentAttendanceList( props ) {
+  const [students, setStudents] = useState(props.students || initialStudents);
 
-  const toggleAttendance = (id) => {
-    setStudents(students.map(student =>
-      student.id === id ? { ...student, isPresent: !student.isPresent } : student
-    ));
+  useEffect(() => {
+    // console.log('Props Students:', props.students);
+    if (props.students) {
+      setStudents(props.students);
+    }
+  }, [props.students]);
+
+  const toggleAttendance = (rollNo) => {
+    setStudents(prevStudents => 
+      prevStudents.map(student =>
+        (student['Roll Number'] === rollNo || student.rollNo === rollNo)
+          ? { ...student, isPresent: !student.isPresent }
+          : student
+      )
+    );
   };
 
   const submitAttendance = () => {
-    console.log('Submitting attendance:', students);
+    console.log('Submitting attendance:', students.map(student => ({
+      rollNo: student['Roll Number'] || student.rollNo,
+      isPresent: student.isPresent
+    })));
   };
 
   return (
     students.length > 0 ? (
       <View style={styles.container}>
-      <View style={styles.table}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.headerCell, styles.nameCell]}>Name</Text>
-          <Text style={[styles.headerCell, styles.rollNoCell]}>Roll No</Text>
-          <Text style={[styles.headerCell, styles.statusCell]}>Status</Text>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.headerCell, styles.nameCell]}>Name</Text>
+            <Text style={[styles.headerCell, styles.rollNoCell]}>Roll No</Text>
+            <Text style={[styles.headerCell, styles.statusCell]}>Status</Text>
+          </View>
+          <ScrollView style={styles.scrollView}>
+            {students.map((student) => (
+              <Pressable
+                key={student['Roll Number'] || student.rollNo}
+                style={styles.tableRow}
+                onPress={() => toggleAttendance(student['Roll Number'] || student.rollNo)}
+              >
+                <Text style={[styles.cell, styles.nameCell]}>
+                  {student.Name || 
+                   student.name || 
+                   student.fullName || 
+                   (student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 'No Name')}
+                </Text>
+                <View style={[styles.cell, styles.rollNoCell]}>
+                  <Text style={styles.rollNoText}>{student['Roll Number'] || student.rollNo}</Text>
+                </View>
+                <View style={[styles.cell, styles.statusCell]}>
+                  <AnimatedCheckmark isPresent={student.isPresent} />
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
-        <ScrollView style={styles.scrollView}>
-          {students.map((student) => (
-            <Pressable
-              key={student.id}
-              style={styles.tableRow}
-              onPress={() => toggleAttendance(student.id)}
-            >
-              <Text style={[styles.cell, styles.nameCell]}>{student.name}</Text>
-              <View style={[styles.cell, styles.rollNoCell]}>
-                <Text style={styles.rollNoText}>{student.id}</Text>
-              </View>
-              <View style={[styles.cell, styles.statusCell]}>
-                <AnimatedCheckmark isPresent={student.isPresent} />
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <TouchableOpacity style={styles.submitButton} onPress={submitAttendance}>
+          <Entypo name="check" size={24} color="white" />
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.submitButton} onPress={submitAttendance}>
-        <Entypo name="check" size={24} color="white" />
-      </TouchableOpacity>
-    </View>
     ) : (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <LottieView

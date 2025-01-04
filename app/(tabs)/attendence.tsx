@@ -1,128 +1,273 @@
-import { View, Text, StyleSheet } from "react-native";
-import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useEffect, useState } from "react";
 import { ScrollView } from "react-native-gesture-handler";
-import { Picker } from "@react-native-picker/picker";
+import DropDownPicker from 'react-native-dropdown-picker';
 import StudentAttendanceList from "@/components/ui/StudentList";
+import { useAuth } from "@/context/AuthContext";
 
-const dates = [
-  {
-    date: "2022-01-01",
-    day: "Sunday",
-  },
-  {
-    date: "2022-01-02",
-    day: "Monday",
-  },
-  {
-    date: "2022-01-03",
-    day: "Tuesday",
-  },
-  {
-    date: "2022-01-04",
-    day: "Wednesday",
-  },
-  {
-    date: "2022-01-05",
-    day: "Thursday",
-  },
-  {
-    date: "2022-01-06",
-    day: "Friday",
-  },
-  {
-    date: "2022-01-07",
-    day: "Saturday",
-  },
-];
+const generateDates = () => {
+  const dates = [];
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  
+  // Generate dates from 2 days before to 5 days after
+  for (let i = -2; i < 6; i++) {
+    const currentDate = new Date('2025-01-03'); // Using the provided current date
+    currentDate.setDate(currentDate.getDate() + i);
+    
+    dates.push({
+      date: currentDate.toISOString().split('T')[0],
+      day: daysOfWeek[currentDate.getDay()]
+    });
+  }
+  
+  return dates;
+};
+
+const dates = generateDates();
 
 export default function Attendence() {
-  const [selectedClass, setSelectedClass] = React.useState("class");
-  const [selectedPeriod, setSelectedPeriod] = React.useState("1st");
+  const { user } = useAuth();
+  const [selectedDate, setSelectedDate] = React.useState(new Date('2025-01-03').toISOString().split('T')[0]);
+  const [teacherData, setTeacherData] = React.useState<any>(null);
+  const [studentsList, setStudentsList] = useState([]);
 
-  const options = [
-    { label: "Class", value: "class" },
-    { label: "BCA I", value: "english" },
-    { label: "BCA II", value: "spanish" },
-    { label: "BCA III", value: "french" },
-    { label: "BCOM I", value: "maths" },
-    { label: "BCOM II", value: "physics" },
-  ];
-  const Periodoptions = [
-    { label: "1st", value: "1st" },
-    { label: "Foundation Course", value: "english" },
-    { label: "DSA", value: "spanish" },
-    { label: "Networking", value: "french" },
-  ];
+  // Class dropdown states
+  const [openClass, setOpenClass] = useState(false);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [classOptions, setClassOptions] = useState([
+    { label: "Select Class", value: null }
+  ]);
+
+
+  // Semester dropdown states
+  const [openSemester, setOpenSemester] = useState(false);
+  const [selectedSemester, setSelectedSemester] = useState(null);
+  const [semesterOptions, setSemesterOptions] = useState([]);
+
+  // Subject dropdown states
+  const [openSubject, setOpenSubject] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [subjectOptions, setSubjectOptions] = useState([]);
+
+  useEffect(() => {
+    const fetchTeacherData = async () => {
+      try {
+        if (!user?._id) return;
+        const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/teachers/id/${user._id}`);
+        const data = await response.json();
+        setTeacherData(data);
+        
+        if (data.classes) {
+          const classOpts = [
+            { label: "Select Class", value: null },
+            ...data.classes.map((c: any) => ({
+              label: c.course,
+              value: c.course
+            }))
+          ];
+          setClassOptions(classOpts);
+        }
+      } catch (error) {
+        console.error('Error fetching teacher data:', error);
+      }
+    };
+
+    fetchTeacherData();
+  }, [user?._id]);
+
+  // Update semester options when class changes
+  const handleClassChange = (value: string) => {
+    setSelectedSemester(null);
+    setSelectedSubject(null);
+    setStudentsList([]); // Clear students list when class changes
+    
+    if (!value || !teacherData?.classes) {
+      setSemesterOptions([]);
+      setSubjectOptions([]);
+      return;
+    }
+
+    const selectedClassData = teacherData.classes.find(
+      (c: any) => c.course === value
+    );
+
+    if (selectedClassData) {
+      setSemesterOptions([
+        {
+          label: selectedClassData.semesterData.sem,
+          value: selectedClassData.semesterData.sem
+        }
+      ]);
+    }
+  };
+
+  // Update subject options when semester changes
+  const handleSemesterChange = async (value: string) => {
+    setSelectedSubject(null);
+
+    if (!value || !teacherData?.classes) {
+      setSubjectOptions([]);
+      setStudentsList([]);
+      return;
+    }
+
+    const selectedClassData = teacherData.classes.find(
+      (c: any) => c.course === selectedClass && c.semesterData.sem === value
+    );
+
+    if (selectedClassData) {
+      setSubjectOptions(
+        selectedClassData.semesterData.subjects.map((subject: string) => ({
+          label: subject,
+          value: subject
+        }))
+      );
+
+      // Fetch students data when both class and semester are selected
+      try {
+        const response = await fetch(
+          `${process.env.EXPO_PUBLIC_BASE_URL}/api/students/byCourse?course=${selectedClass}&semester=${value}`
+        );
+        const data = await response.json();
+        
+        // Check if the response is an array (success) or has an error message
+        if (Array.isArray(data)) {
+          const studentsWithAttendance = data.map(student => ({
+            ...student,
+            isPresent: false
+          }));
+          setStudentsList(studentsWithAttendance);
+        } else {
+          console.log('API Response:', data);
+          setStudentsList([]);
+        }
+      } catch (error) {
+        console.error('Error fetching students:', error);
+        setStudentsList([]);
+      }
+    }
+  };
+
+  // useEffect(() => {
+  //   console.log(studentsList);
+  // }, [studentsList]);
+
+  // Ensure dropdowns don't open simultaneously
+  const handleOpenClass = () => {
+    setOpenSemester(false);
+    setOpenSubject(false);
+  };
+
+  const handleOpenSemester = () => {
+    setOpenClass(false);
+    setOpenSubject(false);
+  };
+
+  const handleOpenSubject = () => {
+    setOpenClass(false);
+    setOpenSemester(false);
+  };
 
   return (
     <View style={styles.container}>
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-around",
-          gap: 10,
-        }}
-      >
-        <View style={styles.pickerContainer}>
-          <Picker
-            mode="dropdown"
-            selectedValue={selectedClass}
-            onValueChange={setSelectedClass}
-            style={styles.picker}
-          >
-            {options.map((option, index) => (
-              <Picker.Item
-                key={index}
-                label={option.label}
-                value={option.value}
-              />
-            ))}
-          </Picker>
+      <View style={styles.dropdownsContainer}>
+        <View style={styles.topDropdowns}>
+          <DropDownPicker
+            open={openClass}
+            value={selectedClass}
+            items={classOptions}
+            setOpen={setOpenClass}
+            setValue={setSelectedClass}
+            setItems={setClassOptions}
+            onChangeValue={handleClassChange}
+            onOpen={handleOpenClass}
+            placeholder="Select Class"
+            style={styles.dropdown}
+            containerStyle={[styles.dropdownContainer, { flex: 1 }]}
+            textStyle={styles.dropdownText}
+            zIndex={3000}
+          />
+          
+          <DropDownPicker
+            open={openSemester}
+            value={selectedSemester}
+            items={semesterOptions}
+            setOpen={setOpenSemester}
+            setValue={setSelectedSemester}
+            setItems={setSemesterOptions}
+            onChangeValue={handleSemesterChange}
+            onOpen={handleOpenSemester}
+            placeholder="Select Semester"
+            style={[
+              styles.dropdown,
+              !selectedClass && styles.dropdownDisabled
+            ]}
+            containerStyle={[styles.dropdownContainer, { flex: 1, marginLeft: 8 }]}
+            textStyle={styles.dropdownText}
+            disabled={!selectedClass}
+            disabledStyle={styles.dropdownDisabled}
+            zIndex={2000}
+          />
         </View>
-        <View style={styles.pickerContainer}>
-          <Picker
-            mode="dropdown"
-            selectedValue={selectedClass}
-            onValueChange={setSelectedClass}
-            style={styles.picker}
-          >
-            {Periodoptions.map((option, index) => (
-              <Picker.Item
-                key={index}
-                label={option.label}
-                value={option.value}
-              />
-            ))}
-          </Picker>
-        </View>
+
+        <DropDownPicker
+          open={openSubject}
+          value={selectedSubject}
+          items={subjectOptions}
+          setOpen={setOpenSubject}
+          setValue={setSelectedSubject}
+          setItems={setSubjectOptions}
+          onOpen={handleOpenSubject}
+          placeholder="Select Subject"
+          style={[
+            styles.dropdown,
+            (!selectedClass || !selectedSemester) && styles.dropdownDisabled
+          ]}
+          containerStyle={[styles.dropdownContainer, { marginTop: 8 }]}
+          textStyle={styles.dropdownText}
+          disabled={!selectedClass || !selectedSemester}
+          disabledStyle={styles.dropdownDisabled}
+          zIndex={1000}
+        />
       </View>
+
       <ScrollView
         style={styles.dates}
         horizontal
         showsHorizontalScrollIndicator={false}
       >
         {dates.map((date, index) => (
-          <View
+          <TouchableOpacity
             key={index}
+            onPress={() => setSelectedDate(date.date)}
             style={[
               styles.dateItemsContainer,
-              index === 2 ? { backgroundColor: "#3085fd" } : {},
+              date.date === selectedDate ? { backgroundColor: "#3085fd" } : {},
             ]}
           >
             <Text
-              style={[styles.dateDay, index === 2 ? { color: "white" } : {}]}
+              style={[
+                styles.dateDay,
+                date.date === selectedDate ? { color: "white" } : {},
+              ]}
             >
               {date.date.split("-")[2]}
             </Text>
             <Text
-              style={[styles.dateItems, index === 2 ? { color: "white" } : {}]}
+              style={[
+                styles.dateItems,
+                date.date === selectedDate ? { color: "white" } : {},
+              ]}
             >
               {date.day.slice(0, 3)}
             </Text>
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
-      <StudentAttendanceList />
+      <StudentAttendanceList 
+        students={studentsList}
+        selectedDate={selectedDate}
+      />
     </View>
   );
 }
@@ -130,24 +275,33 @@ export default function Attendence() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 7,
-    backgroundColor: "#f8f8f8",
+    backgroundColor: "#fff",
+    padding: 10,
+  },
+  dropdownsContainer: {
+    marginBottom: 10,
+  },
+  topDropdowns: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  dropdownContainer: {
+    height: 40,
+  },
+  dropdown: {
+    borderColor: "#ddd",
+    borderRadius: 8,
+    minHeight: 40,
+  },
+  dropdownDisabled: {
+    opacity: 0.6,
+    backgroundColor: "#f5f5f5",
+  },
+  dropdownText: {
+    fontSize: 14,
   },
   dates: {
     flexGrow: 0,
-  },
-  pickerContainer: {
-    alignItems: "center",
-    flex: 1,
-    justifyContent: "center",
-    borderRadius: 13,
-    backgroundColor: "white",
-    elevation: 1,
-    marginBottom: 7,
-  },
-  picker: {
-    height: 40,
-    width: "100%",
   },
   dateItemsContainer: {
     aspectRatio: 1,
@@ -165,11 +319,12 @@ const styles = StyleSheet.create({
   dateItems: {
     textAlign: "center",
     textAlignVertical: "center",
-    fontFamily: "SpaceMono",
+    fontFamily: "Ralewaymedium",
+    fontSize: 12,
   },
   dateDay: {
     fontSize: 30,
-    fontFamily: "SpaceMono",
+    fontFamily: "Ralewaybold",
     textAlign: "center",
     textAlignVertical: "center",
   },

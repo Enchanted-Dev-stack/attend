@@ -28,13 +28,26 @@ import { Picker } from "@react-native-picker/picker";
 
 const TeacherItem = ({ teacher }) => (
   <View style={styles.teacherItem}>
-    <Image source={{ uri: teacher.profilePic }} style={styles.teacherImage} />
+    <Image
+      source={
+        teacher.profilePic
+          ? { uri: teacher.profilePic }
+          : {}
+      }
+      style={styles.teacherImage}
+    />
     <View style={styles.teacherInfo}>
       <Text style={styles.teacherName}>{teacher.name}</Text>
-      {/* <Text style={styles.teacherEmail}>{teacher.email}</Text> */}
-      <Text style={styles.teacherClasses}>
-        {teacher.classes.map((c) => c.class.toUpperCase()).join(", ")}
-      </Text>
+      <Text style={styles.teacherEmail}>{teacher.email}</Text>
+      <View style={styles.classesContainer}>
+        {teacher.classes.map((classItem, index) => (
+          <View key={index} style={styles.classChip}>
+            <Text style={styles.classChipText}>
+              {`${classItem.course} ${classItem.semesterData?.sem || ''}`}
+            </Text>
+          </View>
+        ))}
+      </View>
     </View>
   </View>
 );
@@ -50,7 +63,9 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
   const [currentSubjects, setCurrentSubjects] = useState("");
   const [role, setRole] = useState("");
   const [Courses, setCourses] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState("");
+  const [selectedSemester, setSelectedSemester] = useState("");
+  const [semesterOptions, setSemesterOptions] = useState([]);
 
   const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
 
@@ -71,6 +86,15 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
 
   const handleCourseChange = (value) => {
     setSelectedCourse(value);
+    setSelectedSemester(""); // Reset semester when course changes
+
+    // Find semesters for selected course
+    const selectedCourseData = Courses.find((course) => course.course === value);
+    if (selectedCourseData) {
+      setSemesterOptions(selectedCourseData.semesters);
+    } else {
+      setSemesterOptions([]);
+    }
   };
 
   const pickImage = async () => {
@@ -87,13 +111,24 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
   };
 
   const addClass = () => {
-    if (currentClass && currentSubjects) {
+    if (selectedCourse && selectedSemester && currentSubjects) {
+      // Convert comma-separated subjects into an array and trim whitespace
+      const subjectsArray = currentSubjects.split(',').map(subject => subject.trim()).filter(subject => subject.length > 0);
+      
       setClasses([
         ...classes,
-        { class: currentClass, subject: currentSubjects },
+        {
+          course: selectedCourse,
+          semesterData: {
+            sem: selectedSemester,
+            subjects: subjectsArray
+          }
+        }
       ]);
-      setCurrentClass("");
+      setSelectedCourse("");
+      setSelectedSemester("");
       setCurrentSubjects("");
+      setSemesterOptions([]);
     }
   };
 
@@ -153,35 +188,62 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
             <View key={index} style={styles.classItem}>
               <Text
                 style={styles.classItemText}
-              >{`${item.class}: ${item.subject}`}</Text>
+              >{`${item.course} ${item.semesterData.sem}: ${item.semesterData.subjects.join(', ')}`}</Text>
             </View>
           ))}
           <View style={styles.addClassContainer}>
             <View style={styles.classInputContainer}>
-            <View style={styles.pickerContainer}>
-              <Picker
-                mode="dropdown"
-                selectedValue={selectedCourse}
-                onValueChange={handleCourseChange} // Update function here
-                style={styles.picker}
-              >
-                {Courses.map((course, index) => (
-                  <Picker.Item
-                    key={index}
-                    label={course.course}
-                    value={course.course}
-                  />
-                ))}
-              </Picker>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  mode="dropdown"
+                  selectedValue={selectedCourse}
+                  onValueChange={handleCourseChange}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select Course" value="" />
+                  {Courses.map((course, index) => (
+                    <Picker.Item
+                      key={index}
+                      label={course.course}
+                      value={course.course}
+                    />
+                  ))}
+                </Picker>
+              </View>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  mode="dropdown"
+                  selectedValue={selectedSemester}
+                  onValueChange={setSelectedSemester}
+                  style={styles.picker}
+                  enabled={selectedCourse !== ""}
+                >
+                  <Picker.Item label="Select Semester" value="" />
+                  {semesterOptions.map((semester, index) => (
+                    <Picker.Item
+                      key={index}
+                      label={semester}
+                      value={semester}
+                    />
+                  ))}
+                </Picker>
+              </View>
+              <TextInput
+                style={[styles.input, styles.classInput]}
+                placeholder="Subjects"
+                value={currentSubjects}
+                onChangeText={setCurrentSubjects}
+              />
             </View>
-            <TextInput
-              style={[styles.input, styles.classInput]}
-              placeholder="Subjects"
-              value={currentSubjects}
-              onChangeText={setCurrentSubjects}
-            />
-            </View>
-            <TouchableOpacity style={styles.addClassButton} onPress={addClass}>
+            <TouchableOpacity
+              style={[
+                styles.addClassButton,
+                (!selectedCourse || !selectedSemester || !currentSubjects) &&
+                  styles.addClassButtonDisabled,
+              ]}
+              onPress={addClass}
+              disabled={!selectedCourse || !selectedSemester || !currentSubjects}
+            >
               <Ionicons name="add" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -249,8 +311,11 @@ export default function TeachersManagementScreen() {
       teacher.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       teacher.classes.some(
         (c) =>
-          c.class.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.subject.toLowerCase().includes(searchQuery.toLowerCase())
+          c.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.semesterData.sem.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.semesterData.subjects.some(subject => 
+            subject.toLowerCase().includes(searchQuery.toLowerCase())
+          )
       )
   );
 
@@ -302,7 +367,7 @@ export default function TeachersManagementScreen() {
       )}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -342,7 +407,6 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 14,
-    // paddingVertical
   },
   teacherItem: {
     flexDirection: "row",
@@ -350,12 +414,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingVertical: 5,
-    // marginBottom: 16,
-    // shadowColor: '#000',
-    // shadowOffset: { width: 0, height: 2 },
-    // shadowOpacity: 0.1,
-    // shadowRadius: 4,
-    // elevation: 3,
   },
   teacherImage: {
     width: 60,
@@ -468,17 +526,13 @@ const styles = StyleSheet.create({
   },
   classInputContainer: {
     flex: 1,
-    paddingHorizontal: 8,
     flexDirection: "column",
+    gap: 10,
   },
   pickerContainer: {
-    alignItems: "center",
-    flex: 1,
-    justifyContent: "center",
-    borderRadius: 13,
-    backgroundColor: "white",
-    elevation: 1,
-    marginBottom: 7,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 8,
+    marginBottom: 5,
   },
   picker: {
     height: 50,
@@ -496,6 +550,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  addClassButtonDisabled: {
+    backgroundColor: "#cccccc",
+  },
   submitButton: {
     backgroundColor: "#3B82F6",
     borderRadius: 8,
@@ -506,5 +563,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "600",
+  },
+  classChip: {
+    backgroundColor: "#F0F9FF",
+    borderRadius: 8,
+    padding: 8,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  classChipText: {
+    fontSize: 14,
+    color: "#1E40AF",
   },
 });
