@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import React, { useEffect, useState } from "react";
-import { ScrollView } from "react-native-gesture-handler";
-import DropDownPicker from 'react-native-dropdown-picker';
 import StudentAttendanceList from "@/components/ui/StudentList";
 import { useAuth } from "@/context/AuthContext";
+import TopSheet from "@/components/ui/TopSheet";
+import ClassSelector from "@/components/ui/ClassSelector";
 
 const generateDates = () => {
   const dates = [];
@@ -30,24 +30,12 @@ export default function Attendence() {
   const [selectedDate, setSelectedDate] = React.useState(new Date('2025-01-03').toISOString().split('T')[0]);
   const [teacherData, setTeacherData] = React.useState<any>(null);
   const [studentsList, setStudentsList] = useState([]);
+  const [isClassSelectorVisible, setIsClassSelectorVisible] = useState(false);
 
-  // Class dropdown states
-  const [openClass, setOpenClass] = useState(false);
+  // Selection states
   const [selectedClass, setSelectedClass] = useState(null);
-  const [classOptions, setClassOptions] = useState([
-    { label: "Select Class", value: null }
-  ]);
-
-
-  // Semester dropdown states
-  const [openSemester, setOpenSemester] = useState(false);
   const [selectedSemester, setSelectedSemester] = useState(null);
-  const [semesterOptions, setSemesterOptions] = useState([]);
-
-  // Subject dropdown states
-  const [openSubject, setOpenSubject] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState(null);
-  const [subjectOptions, setSubjectOptions] = useState([]);
 
   useEffect(() => {
     const fetchTeacherData = async () => {
@@ -56,17 +44,6 @@ export default function Attendence() {
         const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/teachers/id/${user._id}`);
         const data = await response.json();
         setTeacherData(data);
-        
-        if (data.classes) {
-          const classOpts = [
-            { label: "Select Class", value: null },
-            ...data.classes.map((c: any) => ({
-              label: c.course,
-              value: c.course
-            }))
-          ];
-          setClassOptions(classOpts);
-        }
       } catch (error) {
         console.error('Error fetching teacher data:', error);
       }
@@ -75,203 +52,118 @@ export default function Attendence() {
     fetchTeacherData();
   }, [user?._id]);
 
-  // Update semester options when class changes
-  const handleClassChange = (value: string) => {
-    setSelectedSemester(null);
-    setSelectedSubject(null);
-    setStudentsList([]); // Clear students list when class changes
-    
-    if (!value || !teacherData?.classes) {
-      setSemesterOptions([]);
-      setSubjectOptions([]);
-      return;
-    }
+  const handleClassSelect = async (course: string, semester: string, subject: string) => {
+    setSelectedClass(course);
+    setSelectedSemester(semester);
+    setSelectedSubject(subject);
+    setIsClassSelectorVisible(false);
 
-    const selectedClassData = teacherData.classes.find(
-      (c: any) => c.course === value
-    );
-
-    if (selectedClassData) {
-      setSemesterOptions([
-        {
-          label: selectedClassData.semesterData.sem,
-          value: selectedClassData.semesterData.sem
-        }
-      ]);
-    }
-  };
-
-  // Update subject options when semester changes
-  const handleSemesterChange = async (value: string) => {
-    setSelectedSubject(null);
-
-    if (!value || !teacherData?.classes) {
-      setSubjectOptions([]);
-      setStudentsList([]);
-      return;
-    }
-
-    const selectedClassData = teacherData.classes.find(
-      (c: any) => c.course === selectedClass && c.semesterData.sem === value
-    );
-
-    if (selectedClassData) {
-      setSubjectOptions(
-        selectedClassData.semesterData.subjects.map((subject: string) => ({
-          label: subject,
-          value: subject
-        }))
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/students/byCourse?course=${course}&semester=${semester}`
       );
-
-      // Fetch students data when both class and semester are selected
-      try {
-        const response = await fetch(
-          `${process.env.EXPO_PUBLIC_BASE_URL}/api/students/byCourse?course=${selectedClass}&semester=${value}`
-        );
-        const data = await response.json();
-        
-        // Check if the response is an array (success) or has an error message
-        if (Array.isArray(data)) {
-          const studentsWithAttendance = data.map(student => ({
-            ...student,
-            isPresent: false
-          }));
-          setStudentsList(studentsWithAttendance);
-        } else {
-          console.log('API Response:', data);
-          setStudentsList([]);
-        }
-      } catch (error) {
-        console.error('Error fetching students:', error);
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        const studentsWithAttendance = data.map(student => ({
+          ...student,
+          isPresent: false
+        }));
+        setStudentsList(studentsWithAttendance);
+      } else {
+        console.log('API Response:', data);
         setStudentsList([]);
       }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      setStudentsList([]);
     }
-  };
-
-  // useEffect(() => {
-  //   console.log(studentsList);
-  // }, [studentsList]);
-
-  // Ensure dropdowns don't open simultaneously
-  const handleOpenClass = () => {
-    setOpenSemester(false);
-    setOpenSubject(false);
-  };
-
-  const handleOpenSemester = () => {
-    setOpenClass(false);
-    setOpenSubject(false);
-  };
-
-  const handleOpenSubject = () => {
-    setOpenClass(false);
-    setOpenSemester(false);
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.dropdownsContainer}>
-        <View style={styles.topDropdowns}>
-          <DropDownPicker
-            open={openClass}
-            value={selectedClass}
-            items={classOptions}
-            setOpen={setOpenClass}
-            setValue={setSelectedClass}
-            setItems={setClassOptions}
-            onChangeValue={handleClassChange}
-            onOpen={handleOpenClass}
-            placeholder="Select Class"
-            style={styles.dropdown}
-            containerStyle={[styles.dropdownContainer, { flex: 1 }]}
-            textStyle={styles.dropdownText}
-            zIndex={3000}
-          />
-          
-          <DropDownPicker
-            open={openSemester}
-            value={selectedSemester}
-            items={semesterOptions}
-            setOpen={setOpenSemester}
-            setValue={setSelectedSemester}
-            setItems={setSemesterOptions}
-            onChangeValue={handleSemesterChange}
-            onOpen={handleOpenSemester}
-            placeholder="Select Semester"
-            style={[
-              styles.dropdown,
-              !selectedClass && styles.dropdownDisabled
-            ]}
-            containerStyle={[styles.dropdownContainer, { flex: 1, marginLeft: 8 }]}
-            textStyle={styles.dropdownText}
-            disabled={!selectedClass}
-            disabledStyle={styles.dropdownDisabled}
-            zIndex={2000}
-          />
+      <TouchableOpacity 
+        style={styles.classSelector}
+        onPress={() => setIsClassSelectorVisible(true)}
+      >
+        {selectedClass ? (
+          <Text style={styles.selectedClassText}>
+            {selectedClass} • {selectedSemester} • {selectedSubject}
+          </Text>
+        ) : (
+          <Text style={styles.selectClassText}>Select a class to take attendance</Text>
+        )}
+      </TouchableOpacity>
+
+      <ScrollView style={styles.scrollContent}>
+        {/* Date Selection */}
+        <View style={styles.section}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.dateScroller}
+          >
+            {dates.map((item) => (
+              <TouchableOpacity
+                key={item.date}
+                style={[
+                  styles.dateCard,
+                  selectedDate === item.date && styles.selectedDateCard
+                ]}
+                onPress={() => setSelectedDate(item.date)}
+              >
+                <Text style={[
+                  styles.dateText,
+                  selectedDate === item.date && styles.selectedDateText
+                ]}>
+                  {new Date(item.date).getDate().toString().padStart(2, '0')}
+                </Text>
+                <Text style={[
+                  styles.dateDay,
+                  selectedDate === item.date && styles.selectedDateText
+                ]}>
+                  {item.day.slice(0, 3)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
-        <DropDownPicker
-          open={openSubject}
-          value={selectedSubject}
-          items={subjectOptions}
-          setOpen={setOpenSubject}
-          setValue={setSelectedSubject}
-          setItems={setSubjectOptions}
-          onOpen={handleOpenSubject}
-          placeholder="Select Subject"
-          style={[
-            styles.dropdown,
-            (!selectedClass || !selectedSemester) && styles.dropdownDisabled
-          ]}
-          containerStyle={[styles.dropdownContainer, { marginTop: 8 }]}
-          textStyle={styles.dropdownText}
-          disabled={!selectedClass || !selectedSemester}
-          disabledStyle={styles.dropdownDisabled}
-          zIndex={1000}
-        />
-      </View>
-
-      <ScrollView
-        style={styles.dates}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-      >
-        {dates.map((date, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={() => setSelectedDate(date.date)}
-            style={[
-              styles.dateItemsContainer,
-              date.date === selectedDate ? { backgroundColor: "#3085fd" } : {},
-            ]}
-          >
-            <Text
-              style={[
-                styles.dateDay,
-                date.date === selectedDate ? { color: "white" } : {},
-              ]}
-            >
-              {date.date.split("-")[2]}
-            </Text>
-            <Text
-              style={[
-                styles.dateItems,
-                date.date === selectedDate ? { color: "white" } : {},
-              ]}
-            >
-              {date.day.slice(0, 3)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {/* Students List */}
+        {studentsList.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.listHeader}>
+              <Text style={styles.sectionTitle}>Students</Text>
+              <Text style={styles.presentCount}>
+                Present: {studentsList.filter(s => s.isPresent).length}/{studentsList.length}
+              </Text>
+            </View>
+            <StudentAttendanceList 
+              students={studentsList} 
+              setStudents={setStudentsList}
+              selectedDate={selectedDate}
+              course={selectedClass}
+              semester={selectedSemester}
+              subject={selectedSubject}
+              teacherId={user?._id}
+            />
+          </View>
+        )}
       </ScrollView>
-      <StudentAttendanceList 
-        students={studentsList}
-        selectedDate={selectedDate}
-        course={selectedClass}
-        semester={selectedSemester}
-        subject={selectedSubject}
-        teacherId={user?._id} 
-      />
+
+      <TopSheet
+        isVisible={isClassSelectorVisible}
+        onClose={() => setIsClassSelectorVisible(false)}
+        title="Select Class"
+      >
+        <ClassSelector
+          selectedClass={selectedClass}
+          selectedSemester={selectedSemester}
+          selectedSubject={selectedSubject}
+          classOptions={teacherData?.classes || []}
+          onSelect={handleClassSelect}
+        />
+      </TopSheet>
     </View>
   );
 }
@@ -279,57 +171,74 @@ export default function Attendence() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    padding: 10,
+    backgroundColor: '#E8EFFF',
   },
-  dropdownsContainer: {
-    marginBottom: 10,
+  classSelector: {
+    backgroundColor: 'transparent',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
   },
-  topDropdowns: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  selectedClassText: {
+    fontSize: 16,
+    fontFamily: 'Ralewaymedium',
+    color: '#000',
   },
-  dropdownContainer: {
-    height: 40,
+  selectClassText: {
+    fontSize: 15,
+    fontFamily: 'Ralewaymedium',
+    color: '#666',
   },
-  dropdown: {
-    borderColor: "#ddd",
-    borderRadius: 8,
-    minHeight: 40,
+  scrollContent: {
+    flex: 1,
   },
-  dropdownDisabled: {
-    opacity: 0.6,
-    backgroundColor: "#f5f5f5",
+  section: {
+    marginTop: 16,
+    paddingHorizontal: 16,
   },
-  dropdownText: {
-    fontSize: 14,
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Ralewaybold',
+    color: '#000',
+    marginBottom: 12,
   },
-  dates: {
+  dateScroller: {
     flexGrow: 0,
+    marginBottom: 8,
   },
-  dateItemsContainer: {
-    aspectRatio: 1,
-    width: 70,
-    borderRadius: 13,
-    backgroundColor: "white",
-    marginRight: 5,
-    marginLeft: 2,
-    marginVertical: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 1,
+  dateCard: {
+    backgroundColor: '#F8F9FF',
+    borderRadius: 16,
+    padding: 16,
+    marginRight: 12,
+    alignItems: 'center',
+    minWidth: 80,
   },
-  dateItems: {
-    textAlign: "center",
-    textAlignVertical: "center",
-    fontFamily: "Ralewaymedium",
-    fontSize: 12,
+  selectedDateCard: {
+    backgroundColor: '#007AFF',
   },
   dateDay: {
-    fontSize: 30,
-    fontFamily: "Ralewaybold",
-    textAlign: "center",
-    textAlignVertical: "center",
+    fontSize: 13,
+    fontFamily: 'Ralewaymedium',
+    color: '#666',
+    marginTop: 4,
+  },
+  dateText: {
+    fontSize: 24,
+    fontFamily: 'Ralewaybold',
+    color: '#000',
+  },
+  selectedDateText: {
+    color: '#fff',
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  presentCount: {
+    fontSize: 15,
+    fontFamily: 'Ralewaymedium',
+    color: '#666',
   },
 });

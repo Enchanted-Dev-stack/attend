@@ -1,9 +1,12 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
 import AnalyticsSelector from '@/components/ui/AnalyticsSelector';
 import { useLocalSearchParams } from 'expo-router';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as XLSX from 'xlsx';
 
 interface ClassAnalytics {
   summary: {
@@ -39,6 +42,7 @@ export default function ClassAnalyticsScreen() {
   const [analyticsData, setAnalyticsData] = useState<ClassAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
 
   const fetchClassAnalytics = async () => {
     if (!user?._id || !selectedCourse || !selectedSemester) return;
@@ -75,6 +79,67 @@ export default function ClassAnalyticsScreen() {
       setAnalyticsData(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportToExcel = async () => {
+    if (!analyticsData?.studentPerformance) return;
+    
+    setExporting(true);
+    try {
+      // Prepare data for Excel
+      const data = analyticsData.studentPerformance.map(student => ({
+        'Name': student.name,
+        'Roll No': student.rollNo,
+        'Classes Attended': student.attendance,
+        'Total Classes': student.totalClasses,
+        'Attendance %': `${((student.attendance / student.totalClasses) * 100).toFixed(1)}%`
+      }));
+
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+
+      // Set column widths
+      const colWidths = [
+        { wch: 20 }, // Name
+        { wch: 10 }, // Roll No
+        { wch: 15 }, // Classes Attended
+        { wch: 15 }, // Total Classes
+        { wch: 12 }  // Attendance %
+      ];
+      ws['!cols'] = colWidths;
+
+      // Generate Excel file
+      const wbout = XLSX.write(wb, {
+        type: 'base64',
+        bookType: 'xlsx'
+      });
+      
+      // Generate filename with class and date info
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `${selectedCourse}_${selectedSemester}_attendance_${date}.xlsx`;
+      
+      // Save file
+      const filePath = `${FileSystem.documentDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(filePath, wbout, {
+        encoding: FileSystem.EncodingType.Base64
+      });
+      
+      // Share file
+      await Sharing.shareAsync(filePath, {
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        dialogTitle: 'Export Attendance Data',
+        UTI: 'org.openxmlformats.spreadsheetml.sheet'
+      });
+      
+      // Clean up file
+      await FileSystem.deleteAsync(filePath);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -119,7 +184,21 @@ export default function ClassAnalyticsScreen() {
 
         {studentPerformance?.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Student Performance</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Student Performance</Text>
+              <TouchableOpacity 
+                style={styles.exportButton}
+                onPress={exportToExcel}
+                disabled={exporting}
+              >
+                <MaterialIcons 
+                  name="file-download" 
+                  size={24} 
+                  color="#007AFF"
+                  style={exporting ? styles.iconDisabled : null}
+                />
+              </TouchableOpacity>
+            </View>
             {studentPerformance.map((student, index) => (
               <View key={student.rollNo} style={styles.studentItem}>
                 <View>
@@ -222,6 +301,12 @@ const styles = StyleSheet.create({
   },
   section: {
     marginHorizontal: 8,
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   sectionTitle: {
@@ -334,5 +419,11 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     textAlign: 'center',
     marginTop: 12,
+  },
+  exportButton: {
+    padding: 8,
+  },
+  iconDisabled: {
+    opacity: 0.5,
   },
 });

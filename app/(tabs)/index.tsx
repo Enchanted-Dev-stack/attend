@@ -1,4 +1,4 @@
-import { StyleSheet, ScrollView, View, TouchableOpacity, Text, Image, Modal, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, View, TouchableOpacity, Text, Image, Modal, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
@@ -16,6 +16,7 @@ export default function Page() {
   const [selectedSession, setSelectedSession] = useState('2024-25');
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [availablePeriods, setAvailablePeriods] = useState({ months: [], sessions: [] });
 
@@ -63,6 +64,20 @@ export default function Page() {
       console.error('Error fetching analytics:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchAvailablePeriods(),
+        fetchAnalytics()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -280,7 +295,17 @@ export default function Page() {
         colors={['#E8EFFF', '#E8EFFF', '#F8FBFF']}
         style={styles.gradient}
       >
-        <ScrollView style={styles.scrollView}>
+        <ScrollView 
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#007AFF']}
+              tintColor="#007AFF"
+            />
+          }
+        >
           <PeriodSelector />
           {loading ? (
             <View style={styles.loadingContainer}>

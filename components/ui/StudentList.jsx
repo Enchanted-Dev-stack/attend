@@ -87,6 +87,15 @@ export default function StudentAttendanceList({
   };
 
   const handleSubmit = async () => {
+    if (!course || !semester || !subject || !teacherId || !session) {
+      Alert.alert(
+        'Missing Information',
+        'Please ensure all fields (course, semester, subject, and session) are selected.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       const attendanceData = {
@@ -94,7 +103,7 @@ export default function StudentAttendanceList({
         course,
         semester,
         subject,
-        date: new Date().toISOString(),
+        date: selectedDate ? new Date(selectedDate).toISOString() : new Date().toISOString(),
         session,
         attendanceData: students.map(student => ({
           studentId: student.sid || student['Roll Number'] || student.rollNo,
