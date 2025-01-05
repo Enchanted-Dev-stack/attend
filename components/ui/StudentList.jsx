@@ -1,7 +1,7 @@
-import { Entypo } from '@expo/vector-icons';
+import { Entypo, AntDesign } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Pressable, Modal, TextInput, Alert } from 'react-native';
 
 const initialStudents = [
   // { id: '01', name: 'Akash Gupta', isPresent: true },
@@ -55,15 +55,26 @@ const AnimatedCheckmark = ({ isPresent }) => {
   );
 };
 
-export default function StudentAttendanceList( props ) {
-  const [students, setStudents] = useState(props.students || initialStudents);
+export default function StudentAttendanceList({ 
+  students: propStudents,
+  selectedDate,
+  course,
+  semester,
+  subject,
+  teacherId
+}) {
+  const [students, setStudents] = useState(propStudents || initialStudents);
+  const [sessionModalVisible, setSessionModalVisible] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [session, setSession] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [existingRecord, setExistingRecord] = useState(null);
 
   useEffect(() => {
-    // console.log('Props Students:', props.students);
-    if (props.students) {
-      setStudents(props.students);
+    if (propStudents) {
+      setStudents(propStudents);
     }
-  }, [props.students]);
+  }, [propStudents]);
 
   const toggleAttendance = (rollNo) => {
     setStudents(prevStudents => 
@@ -75,61 +86,237 @@ export default function StudentAttendanceList( props ) {
     );
   };
 
-  const submitAttendance = () => {
-    console.log('Submitting attendance:', students.map(student => ({
-      rollNo: student['Roll Number'] || student.rollNo,
-      isPresent: student.isPresent
-    })));
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    try {
+      const attendanceData = {
+        teacherId,
+        course,
+        semester,
+        subject,
+        date: new Date().toISOString(),
+        session,
+        attendanceData: students.map(student => ({
+          studentId: student.sid || student['Roll Number'] || student.rollNo,
+          rollNo: student['Roll Number'] || student.rollNo,
+          studentName: student.firstname && student.lastname 
+            ? `${student.firstname} ${student.lastname}`
+            : student.Name || student.name || 'Unknown',
+          isPresent: student.isPresent || false
+        }))
+      };
+
+      console.log('Submitting attendance data:', JSON.stringify(attendanceData, null, 2));
+      console.log('API URL:', `${process.env.EXPO_PUBLIC_BASE_URL}/api/attendance`);
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/attendance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(attendanceData)
+      });
+
+      const responseData = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response data:', responseData);
+
+      if (response.status === 409) {
+        // Duplicate entry found
+        setExistingRecord(responseData.existingRecord);
+        Alert.alert(
+          'Duplicate Entry',
+          'There\'s already an attendance record for this subject. Do you want to update it?',
+          [
+            {
+              text: 'No',
+              style: 'cancel',
+              onPress: () => {
+                setSessionModalVisible(false);
+                setExistingRecord(null);
+              }
+            },
+            {
+              text: 'Yes',
+              onPress: async () => {
+                try {
+                  const updateResponse = await fetch(
+                    `${process.env.EXPO_PUBLIC_BASE_URL}/api/attendance/${responseData.existingRecord._id}`,
+                    {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        teacherId,
+                        attendanceData: attendanceData.attendanceData
+                      })
+                    }
+                  );
+
+                  if (updateResponse.ok) {
+                    setSessionModalVisible(false);
+                    setSuccessModalVisible(true);
+                    setTimeout(() => {
+                      setSuccessModalVisible(false);
+                    }, 2000);
+                  } else {
+                    throw new Error('Failed to update attendance');
+                  }
+                } catch (updateError) {
+                  console.error('Error updating attendance:', updateError);
+                  Alert.alert(
+                    'Error',
+                    'Failed to update attendance. Please try again.',
+                    [{ text: 'OK' }]
+                  );
+                }
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      if (response.status >= 200 && response.status < 300) {
+        setSessionModalVisible(false);
+        setSuccessModalVisible(true);
+        setTimeout(() => {
+          setSuccessModalVisible(false);
+        }, 2000);
+      } else {
+        throw new Error(responseData.error || 'Failed to submit attendance');
+      }
+
+    } catch (error) {
+      console.error('Error submitting attendance:', error);
+      console.error('Error details:', error.message);
+      Alert.alert(
+        'Error',
+        'Failed to submit attendance. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    students.length > 0 ? (
-      <View style={styles.container}>
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, styles.nameCell]}>Name</Text>
-            <Text style={[styles.headerCell, styles.rollNoCell]}>Roll No</Text>
-            <Text style={[styles.headerCell, styles.statusCell]}>Status</Text>
+    <>
+      {students.length > 0 ? (
+        <View style={styles.container}>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.headerCell, styles.nameCell]}>Name</Text>
+              <Text style={[styles.headerCell, styles.rollNoCell]}>Roll No</Text>
+              <Text style={[styles.headerCell, styles.statusCell]}>Status</Text>
+            </View>
+            <ScrollView style={styles.scrollView}>
+              {students.map((student) => (
+                <Pressable
+                  key={student['Roll Number'] || student.rollNo}
+                  style={styles.tableRow}
+                  onPress={() => toggleAttendance(student['Roll Number'] || student.rollNo)}
+                >
+                  <Text style={[styles.cell, styles.nameCell]}>
+                    {student.Name || 
+                     student.name || 
+                     student.fullName || 
+                     (student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 'No Name')}
+                  </Text>
+                  <View style={[styles.cell, styles.rollNoCell]}>
+                    <Text style={styles.rollNoText}>{student['Roll Number'] || student.rollNo}</Text>
+                  </View>
+                  <View style={[styles.cell, styles.statusCell]}>
+                    <AnimatedCheckmark isPresent={student.isPresent} />
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-          <ScrollView style={styles.scrollView}>
-            {students.map((student) => (
-              <Pressable
-                key={student['Roll Number'] || student.rollNo}
-                style={styles.tableRow}
-                onPress={() => toggleAttendance(student['Roll Number'] || student.rollNo)}
-              >
-                <Text style={[styles.cell, styles.nameCell]}>
-                  {student.Name || 
-                   student.name || 
-                   student.fullName || 
-                   (student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 'No Name')}
-                </Text>
-                <View style={[styles.cell, styles.rollNoCell]}>
-                  <Text style={styles.rollNoText}>{student['Roll Number'] || student.rollNo}</Text>
-                </View>
-                <View style={[styles.cell, styles.statusCell]}>
-                  <AnimatedCheckmark isPresent={student.isPresent} />
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <TouchableOpacity 
+            style={styles.submitButton} 
+            onPress={() => setSessionModalVisible(true)}
+          >
+            <Entypo name="check" size={24} color="white" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.submitButton} onPress={submitAttendance}>
-          <Entypo name="check" size={24} color="white" />
-        </TouchableOpacity>
-      </View>
-    ) : (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <LottieView
-        source={require('../../assets/lottie/attendanceList.json')}
-        autoPlay
-        loop
-        style={styles.lottie}
-      />
-        <Text style={{ fontSize: 18, fontFamily: 'SpaceMono', textAlign: 'center', marginBottom: 20 }}>Seems like no one is here</Text>
-        {/* <Text style={{ fontSize: 16, fontFamily: 'Montserrat', textAlign: 'center' }}>Where the students have wandered off?</Text> */}
-      </View>
-    )
+      ) : (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <LottieView
+          source={require('../../assets/lottie/attendanceList.json')}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
+          <Text style={{ fontSize: 18, fontFamily: 'SpaceMono', textAlign: 'center', marginBottom: 20 }}>Seems like no one is here</Text>
+          {/* <Text style={{ fontSize: 16, fontFamily: 'Montserrat', textAlign: 'center' }}>Where the students have wandered off?</Text> */}
+        </View>
+      )}
+
+      {/* Session Input Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={sessionModalVisible}
+        onRequestClose={() => setSessionModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Enter Academic Session</Text>
+              <TouchableOpacity 
+                onPress={() => setSessionModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <AntDesign name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.sessionInput}
+              placeholder="e.g., 2024-25"
+              value={session}
+              onChangeText={setSession}
+              keyboardType="numeric"
+              maxLength={7}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setSessionModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleSubmit}
+                disabled={isLoading || !session}
+              >
+                <Text style={styles.confirmButtonText}>
+                  {isLoading ? 'Submitting...' : 'Confirm'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={successModalVisible}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.successModal]}>
+            <AntDesign name="checkcircle" size={50} color="#4CAF50" />
+            <Text style={styles.successText}>Attendance Submitted Successfully!</Text>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -222,9 +409,78 @@ const styles = StyleSheet.create({
     height: 50,
     elevation: 5,
   },
-  submitButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    width: '80%',
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  sessionInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+  },
+  confirmButton: {
+    backgroundColor: '#2196F3',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  successModal: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  successText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 15,
+    textAlign: 'center',
   },
 });

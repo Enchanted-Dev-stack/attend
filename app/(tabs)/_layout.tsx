@@ -1,14 +1,27 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { TabBar } from "@/components/TabBar";
-import { StatusBar } from "expo-status-bar";
+import { MaterialIcons } from "@expo/vector-icons";
+import { StatusBar } from 'expo-status-bar';
+import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TabLayout() {
   return (
-    // <SafeAreaView style={{ flex: 1 }}>
-      <>
-      <Tabs tabBar={(props) => <TabBar {...props} />}>
+    <View style={{ flex: 1, backgroundColor: '#E8EFFF' }}>
+      <StatusBar backgroundColor="#E8EFFF" style="dark" />
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: '#fff',
+            borderTopWidth: 0,
+            elevation: 0,
+            shadowOpacity: 0,
+          },
+        }}
+        tabBar={(props) => <TabBar {...props} />}
+      >
         <Tabs.Screen
           name="index"
           options={{ headerShown: false, title: "Home" }}
@@ -22,8 +35,6 @@ export default function TabLayout() {
           options={{ headerShown: false, title: "Profile" }}
         />
       </Tabs>
-      <StatusBar backgroundColor="#F0FFFF" style="dark"/>
-      </>
-    // </SafeAreaView>
+    </View>
   );
 }

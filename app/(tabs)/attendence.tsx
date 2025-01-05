@@ -267,6 +267,10 @@ export default function Attendence() {
       <StudentAttendanceList 
         students={studentsList}
         selectedDate={selectedDate}
+        course={selectedClass}
+        semester={selectedSemester}
+        subject={selectedSubject}
+        teacherId={user?._id} 
       />
     </View>
   );
