@@ -45,36 +45,19 @@ export default function ClassAnalyticsScreen() {
     
     setLoading(true);
     try {
-      // First verify if we have the correct data
-      console.log('Fetching analytics with:', {
-        course: selectedCourse,
-        semester: selectedSemester,
-        month: selectedMonth,
-        session: selectedSession,
-        userId: user._id
-      });
-console.log(`${process.env.EXPO_PUBLIC_BASE_URL}/api/analytics/class/${user._id}?course=${encodeURIComponent(selectedCourse)}&semester=${encodeURIComponent(selectedSemester)}&month=${encodeURIComponent(selectedMonth)}&session=${encodeURIComponent(selectedSession)}`)
-      const url = `${process.env.EXPO_PUBLIC_BASE_URL}/api/analytics/class/${user._id}?course=${encodeURIComponent(selectedCourse)}&semester=${encodeURIComponent(selectedSemester)}&month=${encodeURIComponent(selectedMonth)}&session=${encodeURIComponent(selectedSession)}`;
-      
-      console.log('Fetching from URL:', url);
+      const url = `${process.env.EXPO_PUBLIC_BASE_URL}/api/attendance/analytics/class?teacherId=${encodeURIComponent(user._id)}&course=${encodeURIComponent(selectedCourse)}&semester=${encodeURIComponent(selectedSemester)}&month=${encodeURIComponent(selectedMonth)}&session=${encodeURIComponent(selectedSession)}`;
+      console.log('Fetching from URL:', url); // Debug log
 
       const response = await fetch(url);
-      const text = await response.text();
+      const text = await response.text(); // Get raw response text first
       
-      console.log('Response status:', response.status);
-      console.log('Raw response:', text);
-
       try {
+        console.log('Raw response:', text); // Debug log
         const data = JSON.parse(text);
         
         if (response.ok) {
-          if (data.analytics) {
-            setAnalyticsData(data.analytics);
-            setError('');
-          } else {
-            setError('No analytics data available');
-            setAnalyticsData(null);
-          }
+          setAnalyticsData(data.analytics);
+          setError('');
         } else {
           console.error('Error response:', data);
           setError(data.error || 'Failed to fetch analytics');
