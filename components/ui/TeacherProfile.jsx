@@ -1,41 +1,47 @@
 import React, { useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { AntDesign, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { AntDesign, Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { Colors } from '@/constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const scheduleData = {
   'Mon': [
-    { time: '10:00 AM', subject: 'Math', teacher: 'Sarah' },
-    { time: '1:30 PM', subject: 'Biology', teacher: 'Andrew' },
+    { time: '10:00 AM', subject: 'Math', teacher: 'Sarah', room: 'Room 101' },
+    { time: '1:30 PM', subject: 'Biology', teacher: 'Andrew', room: 'Lab 2' },
   ],
   'Wed': [
-    { time: '11:00 AM', subject: 'Math', teacher: 'Sarah' },
-    { time: '2:00 PM', subject: 'Computer Science', teacher: 'John' },
+    { time: '11:00 AM', subject: 'Math', teacher: 'Sarah', room: 'Room 103' },
+    { time: '2:00 PM', subject: 'Computer Science', teacher: 'John', room: 'Lab 1' },
   ],
   'Fri': [
-    { time: '9:30 AM', subject: 'Physics', teacher: 'Emma' },
-    { time: '1:00 PM', subject: 'Chemistry', teacher: 'Michael' },
+    { time: '9:30 AM', subject: 'Physics', teacher: 'Emma', room: 'Room 105' },
+    { time: '1:00 PM', subject: 'Chemistry', teacher: 'Michael', room: 'Lab 3' },
   ],
 };
 
 export default function TeacherProfile() {
   const [selectedDay, setSelectedDay] = useState('Wed');
   const router = useRouter();
-
-  const {logout, user} = useAuth();
+  const { logout, user } = useAuth();
 
   const renderScheduleItem = (item) => (
     <View key={item.time} style={styles.scheduleItem}>
-      <View style={styles.scheduleTime}>
+      <View style={styles.scheduleTimeContainer}>
         <Text style={styles.scheduleTimeText}>{item.time}</Text>
       </View>
-      <View style={styles.scheduleDetails}>
-        <Text style={styles.scheduleSubject}>{item.subject}</Text>
-        <Text style={styles.scheduleTeacher}>with {item.teacher}</Text>
+      <View style={styles.scheduleContent}>
+        <View style={styles.scheduleHeader}>
+          <Text style={styles.scheduleSubject}>{item.subject}</Text>
+          <Text style={styles.scheduleRoom}>{item.room}</Text>
+        </View>
+        <View style={styles.scheduleTeacherContainer}>
+          <Feather name="user" size={14} color="#666" />
+          <Text style={styles.scheduleTeacher}>{item.teacher}</Text>
+        </View>
       </View>
     </View>
   );
@@ -43,33 +49,59 @@ export default function TeacherProfile() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Welcome back, {user.name}</Text>
-          {/* <Text style={styles.subtitle}>Learn something new today</Text> */}
-        </View>
-
-        <View style={styles.teacherCard}>
-          <Image
-            source={{ uri: 'https://i.pravatar.cc/100?img=47' }}
-            style={styles.teacherImage}
-          />
-          <View style={styles.teacherInfo}>
-            <Text style={styles.teacherName} numberOfLines={1}>{user.name}</Text>
-            <Text style={styles.teacherRole}>{user.role || 'Teacher'}</Text>
+        <LinearGradient
+          colors={['#007AFF', '#E8F3FF']}
+          style={styles.header}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.profileSection}>
+              <Image
+                source={{ uri: 'https://i.pravatar.cc/100?img=47' }}
+                style={styles.teacherImage}
+              />
+              <View style={styles.profileInfo}>
+                <Text style={styles.teacherName} numberOfLines={1}>{user.name}</Text>
+                <Text style={styles.teacherRole}>{user.role || 'Teacher'}</Text>
+              </View>
+            </View>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.iconButton} onPress={logout}>
+                <AntDesign name="logout" size={20} color="#007AFF" />
+              </TouchableOpacity>
+              {user.role.toLowerCase() === 'hod' && (
+                <TouchableOpacity 
+                  style={styles.iconButton} 
+                  onPress={() => router.push('/(admin)')}
+                >
+                  <MaterialIcons name="admin-panel-settings" size={20} color="#007AFF" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-          <TouchableOpacity style={styles.messageButton} onPress={() => {logout()}}>
-            <AntDesign name="logout" size={20} color={Colors.original.text} />
-          </TouchableOpacity>
-          {user.role.toLowerCase() === 'hod' && (
-            <TouchableOpacity style={[styles.messageButton, { marginLeft: 7 }]} onPress={() => {router.push('/(admin)')}}>
-            <MaterialIcons name="admin-panel-settings" size={20} color={Colors.original.text} />
-          </TouchableOpacity>
-          )}
+        </LinearGradient>
+
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>24</Text>
+            <Text style={styles.statLabel}>Classes</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>432</Text>
+            <Text style={styles.statLabel}>Students</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>89%</Text>
+            <Text style={styles.statLabel}>Attendance</Text>
+          </View>
         </View>
 
         <View style={styles.scheduleContainer}>
           <Text style={styles.sectionTitle}>Schedule</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateSelector}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            style={styles.dateSelector}
+          >
             {weekDays.map((day, index) => (
               <TouchableOpacity
                 key={day}
@@ -95,7 +127,10 @@ export default function TeacherProfile() {
             {scheduleData[selectedDay] ? (
               scheduleData[selectedDay].map(renderScheduleItem)
             ) : (
-              <Text style={styles.noClassesText}>No classes scheduled for this day.</Text>
+              <View style={styles.noClassesContainer}>
+                <Feather name="calendar" size={40} color="#666" />
+                <Text style={styles.noClassesText}>No classes scheduled</Text>
+              </View>
             )}
           </View>
         </View>
@@ -113,93 +148,128 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  welcomeText: {
-    color: '#333',
-    fontFamily: 'SpaceMono',
+  headerContent: {
+    paddingHorizontal: 20,
+    paddingTop: 40,
   },
-  subtitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#666',
-    marginTop: 5,
-  },
-  teacherCard: {
+  profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 20,
+  },
+  profileInfo: {
+    marginLeft: 15,
+    flex: 1,
+  },
+  teacherImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  teacherName: {
+    fontSize: 24,
+    fontFamily: 'Ralewaybold',
+    color: '#fff',
+  },
+  teacherRole: {
+    fontSize: 16,
+    fontFamily: 'Outfitregular',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    position: 'absolute',
+    right: 20,
+    top: 10,
+  },
+  iconButton: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 15,
-    margin: 20,
-    marginVertical: 0,
+    padding: 10,
+    marginLeft: 10,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
   },
-  teacherImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 30,
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginTop: -25,
   },
-  teacherInfo: {
-    marginLeft: 15,
-    flex: 1,
+  statCard: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 15,
+    width: '30%',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  teacherName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+  statNumber: {
+    fontSize: 24,
+    fontFamily: 'Ralewaybold',
+    color: Colors.original.bg,
   },
-  teacherRole: {
+  statLabel: {
     fontSize: 14,
+    fontFamily: 'Outfitregular',
     color: '#666',
-  },
-  messageButton: {
-    backgroundColor: Colors.original.bg,
-    borderRadius: 20,
-    padding: 10,
+    marginTop: 4,
   },
   scheduleContainer: {
     padding: 20,
+    marginTop: 20,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
+    fontFamily: 'Ralewaybold',
     color: '#333',
+    marginBottom: 15,
   },
   dateSelector: {
-    flexDirection: 'row',
     marginBottom: 20,
   },
   dateItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 1,
-    marginVertical: 5,
-    marginLeft: 2,
     width: 70,
-    height: 70,
+    height: 80,
     borderRadius: 15,
     marginRight: 10,
     backgroundColor: '#fff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   selectedDateItem: {
     backgroundColor: Colors.original.bg,
   },
   dateDay: {
-    fontSize: 12,
+    fontSize: 14,
+    fontFamily: 'Outfitregular',
     color: '#666',
-    fontFamily: 'SpaceMono',
   },
   dateNumber: {
     fontSize: 24,
-    // fontWeight: 'bold',
-    color: '#333',
     fontFamily: 'Ralewaybold',
+    color: '#333',
+    marginTop: 4,
   },
   selectedDateText: {
     color: '#fff',
@@ -209,42 +279,75 @@ const styles = StyleSheet.create({
   },
   scheduleItem: {
     flexDirection: 'row',
-    elevation: 1,
-    alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 15,
     padding: 15,
-    marginBottom: 10,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  scheduleTime: {
-    backgroundColor: '#E0FFFF',
-    borderRadius: 8,
-    padding: 8,
-    marginRight: 15,
+  scheduleTimeContainer: {
+    backgroundColor: Colors.original.bg + '20',
+    borderRadius: 10,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 80,
   },
   scheduleTimeText: {
-    fontSize: 12,
-    color: '#20B2AA',
+    fontSize: 14,
     fontFamily: 'SpaceMono',
+    color: Colors.original.bg,
   },
-  scheduleDetails: {
+  scheduleContent: {
     flex: 1,
+    marginLeft: 15,
+  },
+  scheduleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   scheduleSubject: {
     fontSize: 16,
-    color: '#333',
     fontFamily: 'Ralewaybold',
+    color: '#333',
+  },
+  scheduleRoom: {
+    fontSize: 14,
+    fontFamily: 'Outfitregular',
+    color: '#666',
+  },
+  scheduleTeacherContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   scheduleTeacher: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 14,
     fontFamily: 'Outfitregular',
+    color: '#666',
+    marginLeft: 6,
+  },
+  noClassesContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   noClassesText: {
     fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
     fontFamily: 'Outfitsemibold',
+    color: '#666',
+    marginTop: 10,
   },
 });

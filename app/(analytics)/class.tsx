@@ -1,12 +1,16 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import AnalyticsSelector from '@/components/ui/AnalyticsSelector';
 import { useLocalSearchParams } from 'expo-router';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as XLSX from 'xlsx';
+import { LineChart } from 'react-native-chart-kit';
+import ViewShot from 'react-native-view-shot';
+
+const screenWidth = Dimensions.get('window').width;
 
 interface ClassAnalytics {
   summary: {
@@ -35,6 +39,7 @@ interface ClassAnalytics {
 export default function ClassAnalyticsScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams();
+  const chartRef = useRef();
   const [selectedMonth, setSelectedMonth] = useState(params.month?.toString() || 'jan');
   const [selectedSession, setSelectedSession] = useState(params.session?.toString() || '2024-25');
   const [selectedCourse, setSelectedCourse] = useState<string>('');
@@ -83,12 +88,15 @@ export default function ClassAnalyticsScreen() {
   };
 
   const exportToExcel = async () => {
-    if (!analyticsData?.studentPerformance) return;
+    if (!analyticsData?.studentPerformance || !analyticsData?.trends?.dateWiseStrength) return;
     
     setExporting(true);
     try {
-      // Prepare data for Excel
-      const data = analyticsData.studentPerformance.map(student => ({
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Create attendance data sheet
+      const attendanceData = analyticsData.studentPerformance.map(student => ({
         'Name': student.name,
         'Roll No': student.rollNo,
         'Classes Attended': student.attendance,
@@ -96,12 +104,10 @@ export default function ClassAnalyticsScreen() {
         'Attendance %': `${((student.attendance / student.totalClasses) * 100).toFixed(1)}%`
       }));
 
-      // Create workbook and worksheet
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+      const wsAttendance = XLSX.utils.json_to_sheet(attendanceData);
+      XLSX.utils.book_append_sheet(wb, wsAttendance, "Attendance");
 
-      // Set column widths
+      // Set column widths for attendance sheet
       const colWidths = [
         { wch: 20 }, // Name
         { wch: 10 }, // Roll No
@@ -109,35 +115,80 @@ export default function ClassAnalyticsScreen() {
         { wch: 15 }, // Total Classes
         { wch: 12 }  // Attendance %
       ];
-      ws['!cols'] = colWidths;
+      wsAttendance['!cols'] = colWidths;
+
+      // Create daily trends sheet with processed data
+      const dateMap = new Map();
+      analyticsData.trends.dateWiseStrength.forEach(day => {
+        const dateKey = new Date(day.date).getDate().toString();
+        if (dateMap.has(dateKey)) {
+          const existing = dateMap.get(dateKey);
+          existing.totalPercentage += day.percentage;
+          existing.count += 1;
+          existing.strength += day.strength;
+          existing.total += day.total;
+        } else {
+          dateMap.set(dateKey, {
+            date: day.date,
+            totalPercentage: day.percentage,
+            count: 1,
+            strength: day.strength,
+            total: day.total
+          });
+        }
+      });
+
+      const processedTrends = Array.from(dateMap.entries())
+        .map(([date, data]) => ({
+          'Date': new Date(data.date).toLocaleDateString(),
+          'Present': Math.round(data.strength / data.count),
+          'Total': Math.round(data.total / data.count),
+          'Attendance %': `${(data.totalPercentage / data.count).toFixed(1)}%`,
+          'Classes Count': data.count // Adding number of classes on this date
+        }))
+        .sort((a, b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
+
+      const wsTrends = XLSX.utils.json_to_sheet(processedTrends);
+      XLSX.utils.book_append_sheet(wb, wsTrends, "Daily Trends");
+
+      // Set column widths for trends sheet
+      wsTrends['!cols'] = [
+        { wch: 12 }, // Date
+        { wch: 10 }, // Present
+        { wch: 10 }, // Total
+        { wch: 12 }, // Attendance %
+        { wch: 12 }  // Classes Count
+      ];
 
       // Generate Excel file
       const wbout = XLSX.write(wb, {
         type: 'base64',
-        bookType: 'xlsx'
+        bookType: 'xlsx',
+        bookSST: false
       });
       
       // Generate filename with class and date info
       const date = new Date().toISOString().split('T')[0];
       const filename = `${selectedCourse}_${selectedSemester}_attendance_${date}.xlsx`;
       
-      // Save file
-      const filePath = `${FileSystem.documentDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(filePath, wbout, {
+      // Save and share Excel file
+      const excelFilePath = `${FileSystem.documentDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(excelFilePath, wbout, {
         encoding: FileSystem.EncodingType.Base64
       });
-      
-      // Share file
-      await Sharing.shareAsync(filePath, {
+
+      await Sharing.shareAsync(excelFilePath, {
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         dialogTitle: 'Export Attendance Data',
         UTI: 'org.openxmlformats.spreadsheetml.sheet'
       });
-      
+
       // Clean up file
-      await FileSystem.deleteAsync(filePath);
+      await FileSystem.deleteAsync(excelFilePath);
+
     } catch (error) {
       console.error('Error exporting data:', error);
+      Alert.alert('Export Error', 'There was an error exporting the data. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -158,6 +209,48 @@ export default function ClassAnalyticsScreen() {
     if (!analyticsData) return null;
 
     const { summary, trends, studentPerformance } = analyticsData;
+
+    // Process trends data to average out duplicate dates
+    const dateMap = new Map();
+    trends?.dateWiseStrength?.forEach(day => {
+      const dateKey = new Date(day.date).getDate().toString();
+      if (dateMap.has(dateKey)) {
+        const existing = dateMap.get(dateKey);
+        existing.totalPercentage += day.percentage;
+        existing.count += 1;
+        existing.strength += day.strength;
+        existing.total += day.total;
+      } else {
+        dateMap.set(dateKey, {
+          date: day.date,
+          totalPercentage: day.percentage,
+          count: 1,
+          strength: day.strength,
+          total: day.total
+        });
+      }
+    });
+
+    // Convert map to sorted array and calculate averages
+    const processedTrends = Array.from(dateMap.entries())
+      .map(([date, data]) => ({
+        date: data.date,
+        percentage: data.totalPercentage / data.count,
+        strength: Math.round(data.strength / data.count),
+        total: Math.round(data.total / data.count)
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Prepare chart data with averaged values
+    const chartData = {
+      labels: processedTrends.map(day => 
+        new Date(day.date).getDate().toString()
+      ),
+      datasets: [{
+        data: processedTrends.map(day => day.percentage)
+      }]
+    };
+
     return (
       <>
         <View style={styles.section}>
@@ -181,6 +274,50 @@ export default function ClassAnalyticsScreen() {
             </View>
           </View>
         </View>
+
+        {processedTrends.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Daily Trends</Text>
+            <ViewShot ref={chartRef} options={{ format: "jpg", quality: 0.9 }}>
+              <LineChart
+                data={chartData}
+                width={screenWidth - 40}
+                height={220}
+                chartConfig={{
+                  backgroundColor: '#fff',
+                  backgroundGradientFrom: '#fff',
+                  backgroundGradientTo: '#fff',
+                  decimalPlaces: 1,
+                  color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  style: {
+                    borderRadius: 16
+                  },
+                  propsForDots: {
+                    r: '6',
+                    strokeWidth: '2',
+                    stroke: '#007AFF'
+                  }
+                }}
+                bezier
+                style={{
+                  marginVertical: 8,
+                  borderRadius: 16
+                }}
+              />
+            </ViewShot>
+            {processedTrends.map((day, index) => (
+              <View key={index} style={styles.trendItem}>
+                <Text style={styles.date}>{new Date(day.date).toLocaleDateString()}</Text>
+                <View style={styles.trendStats}>
+                  <Text style={styles.trendValue}>
+                    {day.strength}/{day.total} ({day.percentage.toFixed(1)}%)
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {studentPerformance?.length > 0 && (
           <View style={styles.section}>
@@ -211,22 +348,6 @@ export default function ClassAnalyticsScreen() {
                   </Text>
                   <Text style={styles.attendancePercent}>
                     {((student.attendance / student.totalClasses) * 100).toFixed(1)}%
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {trends?.dateWiseStrength?.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Daily Trends</Text>
-            {trends.dateWiseStrength.map((day, index) => (
-              <View key={index} style={styles.trendItem}>
-                <Text style={styles.date}>{new Date(day.date).toLocaleDateString()}</Text>
-                <View style={styles.trendStats}>
-                  <Text style={styles.trendValue}>
-                    {day.strength}/{day.total} ({day.percentage.toFixed(1)}%)
                   </Text>
                 </View>
               </View>
