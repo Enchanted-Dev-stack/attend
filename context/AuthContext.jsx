@@ -58,10 +58,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // const check
+  // Update user function
+  const updateUser = async (userData) => {
+    try {
+      await AsyncStorage.setItem('userData', JSON.stringify(userData));
+      setUser(userData);
+    } catch (error) {
+      console.error('Update user failed:', error);
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
