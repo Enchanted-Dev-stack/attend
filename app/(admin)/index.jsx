@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
 
-const AdminOption = ({ icon, title, onPress, color, notifications }) => {
+const AdminOption = ({ icon, title, onPress, color }) => {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -33,38 +33,77 @@ const AdminOption = ({ icon, title, onPress, color, notifications }) => {
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >
-        <View style={[styles.iconBackground, { backgroundColor: color }]}>
-          <Ionicons name={icon} size={24} color="#FFFFFF" />
-        </View>
-        <Text style={styles.optionText}>{title}</Text>
-        {notifications && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{notifications}</Text>
+        <LinearGradient
+          colors={[color, color + '80']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.card}
+        >
+          <View style={styles.iconContainer}>
+            <Ionicons name={icon} size={28} color="#FFFFFF" />
           </View>
-        )}
+          <Text style={styles.optionText}>{title}</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </Animated.View>
   );
 };
 
-const QuickStat = ({ title, value, color }) => (
+const QuickStat = ({ title, value, color, icon }) => (
   <View style={styles.quickStat}>
-    <View style={[styles.quickStatIconBackground, { backgroundColor: color }]}>
-      <Text style={styles.quickStatValue}>{value}</Text>
-    </View>
-    <Text style={styles.quickStatTitle}>{title}</Text>
+    <LinearGradient
+      colors={[color, color + '80']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.quickStatGradient}
+    >
+      <View style={styles.quickStatContent}>
+        <Ionicons name={icon} size={24} color="#FFFFFF" style={styles.quickStatIcon} />
+        <Text style={styles.quickStatValue}>{value}</Text>
+        <Text style={styles.quickStatTitle}>{title}</Text>
+      </View>
+    </LinearGradient>
   </View>
 );
 
 export default function AdminPanelScreen() {
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [analytics, setAnalytics] = React.useState({
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalCourses: 0,
+    attendancePercentage: 0,
+  });
+
+  const fetchAnalytics = async () => {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/analytics`);
+      const result = await response.json();
+      if (result.success) {
+        setAnalytics(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    }
+  };
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    fetchAnalytics().finally(() => setRefreshing(false));
+  }, []);
+
+  React.useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
   const handleNavigation = (screen) => {
-    router.push(`${screen}`);
+    router.push(screen);
   };
 
   const menuItems = [
-    { icon: 'people', title: 'Students', color: '#EC4899', notifications: 5, route: '/(admin)/addstudents' },
+    { icon: 'people', title: 'Students', color: '#007AFF', route: '/(admin)/addstudents' },
     { icon: 'school', title: 'Teachers', color: '#8B5CF6', route: '/(admin)/teachers' },
-    { icon: 'book', title: 'Courses', color: '#3B82F6', notifications: 2, route: '/(admin)/courses' },
+    { icon: 'book', title: 'Courses', color: '#3B82F6', route: '/(admin)/courses' },
     { icon: 'calendar', title: 'Attendance', color: '#10B981', route: 'Attendance' },
     { icon: 'stats-chart', title: 'Reports', color: '#F59E0B', route: '/login' },
     { icon: 'time', title: 'Schedules', color: '#EF4444', route: 'Schedules' },
@@ -72,16 +111,15 @@ export default function AdminPanelScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#fff', '#fff']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.header}
+      <StatusBar backgroundColor="#E8EFFF" style='dark' />
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <Text style={styles.headerText}>Admin Dashboard</Text>
-        <Text style={styles.subHeaderText}>Manage your educational platform with ease</Text>
-      </LinearGradient>
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <View style={styles.optionsGrid}>
           {menuItems.map((item, index) => (
             <AdminOption
@@ -89,22 +127,41 @@ export default function AdminPanelScreen() {
               icon={item.icon}
               title={item.title}
               color={item.color}
-              notifications={item.notifications}
               onPress={() => handleNavigation(item.route)}
             />
           ))}
         </View>
+
         <View style={styles.quickStatsContainer}>
-          <Text style={styles.quickStatsHeader}>Quick Stats</Text>
+          <Text style={styles.sectionTitle}>Quick Stats</Text>
           <View style={styles.quickStatsGrid}>
-            <QuickStat title="Total Students" value="1,234" color="#3B82F6" />
-            <QuickStat title="Active Courses" value="56" color="#10B981" />
-            <QuickStat title="Avg. Attendance" value="92%" color="#F59E0B" />
-            <QuickStat title="Teacher Ratio" value="1:18" color="#8B5CF6" />
+            <QuickStat 
+              title="Total Students" 
+              value={analytics.totalStudents.toString()}
+              color="#007AFF"
+              icon="people" 
+            />
+            <QuickStat 
+              title="Active Courses" 
+              value={analytics.totalCourses.toString()}
+              color="#10B981"
+              icon="book" 
+            />
+            <QuickStat 
+              title="Teachers" 
+              value={analytics.totalTeachers.toString()}
+              color="#8B5CF6"
+              icon="school" 
+            />
+            <QuickStat 
+              title="Attendance" 
+              value={`${analytics.attendancePercentage}%`}
+              color="#F59E0B"
+              icon="stats-chart" 
+            />
           </View>
         </View>
       </ScrollView>
-      <StatusBar style="light" />
     </View>
   );
 }
@@ -112,24 +169,7 @@ export default function AdminPanelScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    padding: 20,
-    paddingTop: 10,
-    paddingBottom: 30,
-  },
-  headerText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000',
-    textAlign: 'center',
-  },
-  subHeaderText: {
-    fontSize: 16,
-    color: '#000',
-    textAlign: 'center',
-    marginTop: 5,
+    backgroundColor: '#E8EFFF',
   },
   content: {
     flex: 1,
@@ -137,72 +177,48 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
   },
+  sectionTitle: {
+    fontSize: 20,
+    color: '#1F2937',
+    marginBottom: 16,
+    marginTop: 24,
+    fontFamily: 'Ralewaysemibold',
+  },
   optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginTop: 16,
   },
   optionContainer: {
     width: cardWidth,
     marginBottom: 16,
   },
   option: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 140,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    overflow: 'hidden',
   },
-  iconBackground: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  card: {
+    padding: 20,
+    height: 130,
+    justifyContent: 'space-between',
+  },
+  iconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   optionText: {
-    color: '#1F2937',
     fontSize: 16,
     fontWeight: '600',
-    textAlign: 'center',
-  },
-  badge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  badgeText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: 'Ralewaysemibold',
   },
   quickStatsContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  quickStatsHeader: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#1F2937',
+    marginTop: 0,
   },
   quickStatsGrid: {
     flexDirection: 'row',
@@ -210,27 +226,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   quickStat: {
-    width: '48%',
-    alignItems: 'center',
+    width: cardWidth,
     marginBottom: 16,
   },
-  quickStatIconBackground: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
+  quickStatGradient: {
+    borderRadius: 16,
+    padding: 16,
+    height: 120,
+  },
+  quickStatContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  quickStatIcon: {
     marginBottom: 8,
+  },
+  quickStatValue: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    marginBottom: 4,
+    fontFamily: 'Ralewaybold',
   },
   quickStatTitle: {
     fontSize: 14,
-    color: '#4B5563',
-    textAlign: 'center',
-  },
-  quickStatValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
     color: '#FFFFFF',
+    opacity: 0.9,
+    fontFamily: 'Ralewaybold',
   },
 });
-

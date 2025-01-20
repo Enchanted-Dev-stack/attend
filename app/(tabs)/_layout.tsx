@@ -24,15 +24,15 @@ export default function TabLayout() {
       >
         <Tabs.Screen
           name="index"
-          options={{ headerShown: false, title: "Home" }}
+          options={{ headerShown: false, title: "Home",animation: "shift" }}
         />
         <Tabs.Screen
           name="attendence"
-          options={{ headerShown: false, title: "Take" }}
+          options={{ headerShown: false, title: "Take",animation: "shift" }}
         />
         <Tabs.Screen
           name="profile"
-          options={{ headerShown: false, title: "Profile" }}
+          options={{ headerShown: false, title: "Profile",animation: "shift" }}
         />
       </Tabs>
     </View>

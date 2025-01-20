@@ -179,7 +179,7 @@ export default function Page() {
 
     return (
       <View style={styles.statsContainer}>
-        <View style={styles.header}>
+        {/* <View style={styles.header}>
           <View style={styles.userInfo}>
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
               <Text style={styles.avatarText}>{user?.displayName?.[0] || 'D'}</Text>
@@ -191,7 +191,7 @@ export default function Page() {
               </Text>
             </View>
           </View>
-        </View>
+        </View> */}
 
         <View style={styles.headerRow}>
           <Text style={styles.sectionTitle}>Weekly Stats</Text>

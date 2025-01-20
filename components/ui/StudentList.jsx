@@ -2,7 +2,6 @@ import { Entypo, AntDesign } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Pressable, Modal, TextInput, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const initialStudents = [
   // { id: '01', name: 'Akash Gupta', isPresent: true },
@@ -66,58 +65,10 @@ export default function StudentAttendanceList({
 }) {
   const [students, setStudents] = useState(propStudents || initialStudents);
   const [sessionModalVisible, setSessionModalVisible] = useState(false);
-  const [selectedSession, setSelectedSession] = useState('');
   const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [session, setSession] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [existingRecord, setExistingRecord] = useState(null);
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.5)).current;
-
-  const showSuccessMessage = () => {
-    setSuccessModalVisible(true);
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      })
-    ]).start();
-  };
-
-  const hideSuccessMessage = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 0.5,
-        duration: 200,
-        useNativeDriver: true,
-      })
-    ]).start(() => {
-      setSuccessModalVisible(false);
-      // Reset animations
-      fadeAnim.setValue(0);
-      scaleAnim.setValue(0.5);
-    });
-  };
-
-  // Get current year and generate session options
-  const currentYear = new Date().getFullYear();
-  const sessionOptions = [
-    `${currentYear-1}-${currentYear}`,
-    `${currentYear}-${currentYear+1}`,
-    `${currentYear+1}-${currentYear+2}`
-  ];
 
   useEffect(() => {
     if (propStudents) {
@@ -135,7 +86,7 @@ export default function StudentAttendanceList({
     );
   };
 
-  const handleSubmit = async (session) => {
+  const handleSubmit = async () => {
     if (!course || !semester || !subject || !teacherId || !session) {
       Alert.alert(
         'Missing Information',
@@ -216,9 +167,9 @@ export default function StudentAttendanceList({
 
                   if (updateResponse.ok) {
                     setSessionModalVisible(false);
-                    showSuccessMessage();
+                    setSuccessModalVisible(true);
                     setTimeout(() => {
-                      hideSuccessMessage();
+                      setSuccessModalVisible(false);
                     }, 2000);
                   } else {
                     throw new Error('Failed to update attendance');
@@ -240,9 +191,9 @@ export default function StudentAttendanceList({
 
       if (response.status >= 200 && response.status < 300) {
         setSessionModalVisible(false);
-        showSuccessMessage();
+        setSuccessModalVisible(true);
         setTimeout(() => {
-          hideSuccessMessage();
+          setSuccessModalVisible(false);
         }, 2000);
       } else {
         throw new Error(responseData.error || 'Failed to submit attendance');
@@ -316,62 +267,62 @@ export default function StudentAttendanceList({
 
       {/* Session Input Modal */}
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={sessionModalVisible}
         onRequestClose={() => setSessionModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <LinearGradient
-            colors={['#E3EFFF', '#F8FBFF']}
-            style={styles.modalContent}
-          >
-            <Text style={styles.modalTitle}>Select Session</Text>
-            <View style={styles.sessionOptions}>
-              {sessionOptions.map((session) => (
-                <TouchableOpacity
-                  key={session}
-                  style={styles.sessionOption}
-                  onPress={() => handleSubmit(session)}
-                >
-                  <Text style={styles.sessionOptionText}>{session}</Text>
-                </TouchableOpacity>
-              ))}
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Enter Academic Session</Text>
+              <TouchableOpacity 
+                onPress={() => setSessionModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <AntDesign name="close" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setSessionModalVisible(false)}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </LinearGradient>
+            <TextInput
+              style={styles.sessionInput}
+              placeholder="e.g., 2024-25"
+              value={session}
+              onChangeText={setSession}
+              keyboardType="numeric"
+              maxLength={7}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setSessionModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleSubmit}
+                disabled={isLoading || !session}
+              >
+                <Text style={styles.confirmButtonText}>
+                  {isLoading ? 'Submitting...' : 'Confirm'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
       {/* Success Modal */}
       <Modal
+        animationType="fade"
         transparent={true}
         visible={successModalVisible}
-        onRequestClose={hideSuccessMessage}
       >
         <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.successModal,
-              {
-                opacity: fadeAnim,
-                transform: [{ scale: scaleAnim }]
-              }
-            ]}
-          >
-            <LottieView
-              source={require('../../assets/lottie/attendancesuccess.json')}
-              autoPlay
-              loop={false}
-              style={styles.successAnimation}
-            />
-            <Text style={styles.successText}>Attendance submitted successfully!</Text>
-          </Animated.View>
+          <View style={[styles.modalContent, styles.successModal]}>
+            <AntDesign name="checkcircle" size={50} color="#4CAF50" />
+            <Text style={styles.successText}>Attendance Submitted Successfully!</Text>
+          </View>
         </View>
       </Modal>
     </>
@@ -474,53 +425,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    borderRadius: 15,
+    backgroundColor: 'white',
+    borderRadius: 20,
     padding: 20,
-    width: '85%',
+    width: '80%',
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#333',
-    marginBottom: 20,
-    fontFamily: 'Ralewaybold',
   },
-  sessionOptions: {
-    width: '100%',
+  closeButton: {
+    padding: 5,
+  },
+  sessionInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 10,
   },
-  sessionOption: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    width: '100%',
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    minWidth: 100,
     alignItems: 'center',
   },
-  sessionOptionText: {
-    fontSize: 18,
-    color: '#666',
-    fontFamily: 'Outfitlight',
-  },
   cancelButton: {
-    marginTop: 15,
-    padding: 12,
+    backgroundColor: '#f5f5f5',
   },
-  cancelText: {
+  confirmButton: {
+    backgroundColor: '#2196F3',
+  },
+  cancelButtonText: {
     color: '#666',
     fontSize: 16,
-    fontFamily: 'Outfitregular',
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
   successModal: {
     alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 15,
-    width: '85%',
-  },
-  successAnimation: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
+    paddingVertical: 30,
   },
   successText: {
     fontSize: 18,

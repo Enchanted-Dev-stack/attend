@@ -11,9 +11,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ToastAndroid,
+  ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import Animated, {
   useSharedValue,
@@ -25,32 +27,50 @@ import Animated, {
 import axios from "axios";
 import { LinearGradient } from "expo-linear-gradient";
 import { Picker } from "@react-native-picker/picker";
+import { Modal, RefreshControl } from 'react-native';
 
-const TeacherItem = ({ teacher }) => (
-  <View style={styles.teacherItem}>
-    <Image
-      source={
-        teacher.profilePic
-          ? { uri: teacher.profilePic }
-          : {}
-      }
-      style={styles.teacherImage}
-    />
-    <View style={styles.teacherInfo}>
-      <Text style={styles.teacherName}>{teacher.name}</Text>
-      <Text style={styles.teacherEmail}>{teacher.email}</Text>
-      <View style={styles.classesContainer}>
-        {teacher.classes.map((classItem, index) => (
-          <View key={index} style={styles.classChip}>
-            <Text style={styles.classChipText}>
-              {`${classItem.course} ${classItem.semesterData?.sem || ''}`}
-            </Text>
+const TeacherItem = ({ teacher }) => {
+  const [imageError, setImageError] = useState(false);
+  console.log('Teacher data:', JSON.stringify(teacher, null, 2)); // More detailed logging
+  console.log('Profile pic URL:', teacher?.profilePic); // Specific logging for profile pic
+  
+  // Safely handle undefined teacher name
+  const initial = teacher?.name?.charAt(0)?.toUpperCase() || '?';
+  
+  return (
+    <View style={styles.teacherItem}>
+      <View style={styles.teacherCard}>
+        <View style={styles.teacherHeader}>
+          {teacher?.profilePic && !imageError ? (
+            <Image
+              source={{ uri: teacher.profilePic }}
+              style={[styles.teacherImage, { backgroundColor: '#f0f0f0' }]}
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>{initial}</Text>
+            </View>
+          )}
+          <View style={styles.teacherInfo}>
+            <Text style={styles.teacherName}>{teacher?.name || 'Unknown Teacher'}</Text>
+            <Text style={styles.teacherEmail}>{teacher?.email || 'No email'}</Text>
           </View>
-        ))}
+        </View>
+        <View style={styles.classesContainer}>
+          {teacher?.classes?.map((classItem, index) => (
+            <View key={index} style={styles.classChip}>
+              <MaterialIcons name="class" size={16} color="#007AFF" style={styles.classIcon} />
+              <Text style={styles.classChipText}>
+                {`${classItem.course} ${classItem.semesterData?.sem || ''}`}
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
     </View>
-  </View>
-);
+  );
+};
 
 const AddTeacherForm = ({ onClose, onAdd }) => {
   const [name, setName] = useState("");
@@ -183,17 +203,31 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
           onChangeText={setRole}
         />
         <View style={styles.classesContainer}>
-          <Text style={styles.classesTitle}>Classes and Subjects</Text>
+          <Text style={styles.sectionTitle}>Classes and Subjects</Text>
+          
+          {/* Display added classes */}
           {classes.map((item, index) => (
-            <View key={index} style={styles.classItem}>
-              <Text
-                style={styles.classItemText}
-              >{`${item.course} ${item.semesterData.sem}: ${item.semesterData.subjects.join(', ')}`}</Text>
+            <View key={index} style={styles.classCard}>
+              <View style={styles.classHeader}>
+                <Text style={styles.courseText}>{item.course}</Text>
+                <Text style={styles.semesterText}>Semester {item.semesterData.sem}</Text>
+              </View>
+              <View style={styles.subjectsContainer}>
+                {item.semesterData.subjects.map((subject, subIndex) => (
+                  <View key={subIndex} style={styles.subjectChip}>
+                    <MaterialIcons name="subject" size={16} color="#007AFF" style={styles.subjectIcon} />
+                    <Text style={styles.subjectText}>{subject}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           ))}
-          <View style={styles.addClassContainer}>
-            <View style={styles.classInputContainer}>
-              <View style={styles.pickerContainer}>
+
+          {/* Add new class form */}
+          <View style={styles.addClassSection}>
+            <Text style={styles.addClassTitle}>Add New Class</Text>
+            <View style={styles.pickerRow}>
+              <View style={[styles.pickerContainer, { flex: 1 }]}>
                 <Picker
                   mode="dropdown"
                   selectedValue={selectedCourse}
@@ -210,7 +244,7 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
                   ))}
                 </Picker>
               </View>
-              <View style={styles.pickerContainer}>
+              <View style={[styles.pickerContainer, { flex: 1 }]}>
                 <Picker
                   mode="dropdown"
                   selectedValue={selectedSemester}
@@ -228,24 +262,30 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
                   ))}
                 </Picker>
               </View>
+            </View>
+            
+            <View style={styles.subjectsInputContainer}>
               <TextInput
-                style={[styles.input, styles.classInput]}
-                placeholder="Subjects"
+                style={styles.subjectsInput}
+                placeholder="Enter subjects (comma-separated)"
                 value={currentSubjects}
                 onChangeText={setCurrentSubjects}
+                multiline={true}
+                numberOfLines={2}
               />
+              <TouchableOpacity
+                style={[
+                  styles.addButton,
+                  (!selectedCourse || !selectedSemester || !currentSubjects) &&
+                    styles.addButtonDisabled,
+                ]}
+                onPress={addClass}
+                disabled={!selectedCourse || !selectedSemester || !currentSubjects}
+              >
+                <Ionicons name="add-circle" size={24} color="#FFFFFF" />
+                <Text style={styles.addButtonText}>Add Class</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[
-                styles.addClassButton,
-                (!selectedCourse || !selectedSemester || !currentSubjects) &&
-                  styles.addClassButtonDisabled,
-              ]}
-              onPress={addClass}
-              disabled={!selectedCourse || !selectedSemester || !currentSubjects}
-            >
-              <Ionicons name="add" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
           </View>
         </View>
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
@@ -256,198 +296,213 @@ const AddTeacherForm = ({ onClose, onAdd }) => {
   );
 };
 
-export default function TeachersManagementScreen() {
-  const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
-
+const TeachersManagementScreen = () => {
   const [teachers, setTeachers] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const formScale = useSharedValue(0);
-  const formOpacity = useSharedValue(0);
-
-  const formAnimatedStyle = useAnimatedStyle(() => {
-    const scale = interpolate(
-      formScale.value,
-      [0, 1],
-      [0.8, 1],
-      Extrapolate.CLAMP
-    );
-    return {
-      transform: [{ scale }],
-      opacity: formOpacity.value,
-    };
-  });
-
-  useEffect(() => {
-    axios.get(`${BASE_URL}/api/teachers`).then((response) => {
+  const fetchTeachers = async () => {
+    try {
+      const response = await axios.get(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/teachers`
+      );
+      console.log('Teachers API full response:', {
+        status: response.status,
+        data: JSON.stringify(response.data, null, 2)
+      });
       setTeachers(response.data);
-    });
-  }, []);
-
-  const toggleAddForm = () => {
-    if (showAddForm) {
-      formScale.value = withSpring(0);
-      formOpacity.value = withSpring(0);
-      setTimeout(() => setShowAddForm(false), 300);
-    } else {
-      setShowAddForm(true);
-      formScale.value = withSpring(1);
-      formOpacity.value = withSpring(1);
+    } catch (error) {
+      console.error("Error fetching teachers:", error);
+      ToastAndroid.show("Error fetching teachers", ToastAndroid.SHORT);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const addTeacher = (teacher) => {
-    setTeachers([...teachers, teacher]);
-    console.log(teacher);
-    axios.post(`${BASE_URL}/api/teachers`, teacher).then((response) => {
+  useEffect(() => {
+    fetchTeachers();
+  }, []);
+
+  const handleAddTeacher = async (teacherData) => {
+    try {
+      const response = await axios.post(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/teachers`,
+        teacherData
+      );
+      setTeachers([...teachers, response.data]);
+      setShowAddForm(false);
       ToastAndroid.show("Teacher added successfully", ToastAndroid.SHORT);
-    });
+    } catch (error) {
+      console.error("Error adding teacher:", error);
+      ToastAndroid.show("Error adding teacher", ToastAndroid.SHORT);
+    }
   };
 
-  const filteredTeachers = teachers.filter(
-    (teacher) =>
-      teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      teacher.classes.some(
-        (c) =>
-          c.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.semesterData.sem.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.semesterData.subjects.some(subject => 
-            subject.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-      )
-  );
-
-  const renderTeacherItem = useCallback(
-    ({ item }) => <TeacherItem teacher={item} />,
-    []
-  );
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchTeachers();
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={["#3B82F6", "#ffffff"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search"
-            size={20}
-            color="#64748B"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search teachers..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading teachers...</Text>
         </View>
-        <TouchableOpacity style={styles.addButton} onPress={toggleAddForm}>
-          <Ionicons
-            name={showAddForm ? "close" : "add"}
-            size={24}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
-      </LinearGradient>
-      <FlatList
-        data={filteredTeachers}
-        renderItem={renderTeacherItem}
-        keyExtractor={(item) => item.email}
-        contentContainerStyle={styles.listContainer}
-      />
-      {showAddForm && (
-        <Animated.View style={[styles.formWrapper, formAnimatedStyle]}>
-          <AddTeacherForm onClose={toggleAddForm} onAdd={addTeacher} />
-        </Animated.View>
+      ) : (
+        <FlatList
+          data={teachers}
+          renderItem={({ item }) => <TeacherItem teacher={item} />}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        />
       )}
-    </View>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowAddForm(true)}
+      >
+        <Ionicons name="add" size={32} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {showAddForm && (
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showAddForm}
+          onRequestClose={() => setShowAddForm(false)}
+        >
+          <View style={styles.modalContainer}>
+            <AddTeacherForm
+              onClose={() => setShowAddForm(false)}
+              onAdd={handleAddTeacher}
+            />
+          </View>
+        </Modal>
+      )}
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#3B82F6",
-  },
-  searchContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    marginRight: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 40,
-    fontSize: 16,
-    color: "#1E40AF",
-    fontFamily: "SpaceMono",
-  },
-  addButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: '#F8F9FA',
   },
   listContainer: {
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 16,
   },
   teacherItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingVertical: 5,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  teacherCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+  },
+  teacherHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 18,
+    fontFamily: 'Ralewaysemibold',
   },
   teacherImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
   },
   teacherInfo: {
     flex: 1,
   },
   teacherName: {
-    fontSize: 18,
-    color: "#00000",
-    fontFamily: "Poppins",
+    fontSize: 20,
+    fontFamily: 'Ralewaysemibold',
+    color: '#000',
+    marginBottom: 4,
   },
   teacherEmail: {
     fontSize: 14,
-    color: "#64748B",
-    marginBottom: 4,
+    fontFamily: 'Ralewayregular',
+    color: '#666',
   },
-  teacherClasses: {
-    fontSize: 12,
-    color: "#3B82F6",
-    fontFamily: "SpaceMono",
+  classesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
   },
-  formWrapper: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+  classChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f7ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  classIcon: {
+    marginRight: 4,
+  },
+  classChipText: {
+    fontSize: 14,
+    fontFamily: 'Ralewaymedium',
+    color: '#007AFF',
   },
   formContainer: {
     backgroundColor: "#FFFFFF",
@@ -499,59 +554,121 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     fontFamily: "Outfitregular",
   },
-  classesContainer: {
-    marginBottom: 24,
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Ralewaysemibold',
+    color: '#1a1a1a',
+    marginBottom: 16,
   },
-  classesTitle: {
-    fontSize: 18,
-    fontFamily: "Outfitregular",
-    color: "#1E40AF",
+  classCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  classHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  courseText: {
+    fontSize: 16,
+    fontFamily: 'Ralewaysemibold',
+    color: '#1a1a1a',
+  },
+  semesterText: {
+    fontSize: 14,
+    fontFamily: 'Ralewaymedium',
+    color: '#6c757d',
+  },
+  subjectsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  subjectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e7f1ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  subjectIcon: {
+    marginRight: 4,
+  },
+  subjectText: {
+    fontSize: 14,
+    fontFamily: 'Ralewaymedium',
+    color: '#007AFF',
+  },
+  addClassSection: {
+    marginTop: 24,
+    marginBottom: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    width: '100%',
+  },
+  addClassTitle: {
+    fontSize: 16,
+    fontFamily: 'Ralewaysemibold',
+    color: '#1a1a1a',
     marginBottom: 12,
   },
-  classItem: {
-    backgroundColor: "#F0F9FF",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  classItemText: {
-    fontSize: 14,
-    color: "#1E40AF",
-  },
-  addClassContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  classInputContainer: {
-    flex: 1,
-    flexDirection: "column",
-    gap: 10,
+  pickerRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+    width: '100%',
   },
   pickerContainer: {
-    backgroundColor: "#f0f0f0",
+    backgroundColor: '#f8f9fa',
     borderRadius: 8,
-    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    overflow: 'hidden',
   },
   picker: {
     height: 50,
-    width: "100%",
   },
-  classInput: {
-    flex: 1,
-    marginRight: 8,
-    marginBottom: 0,
+  subjectsInputContainer: {
+    width: '100%',
+    gap: 12,
   },
-  addClassButton: {
-    backgroundColor: "#3B82F6",
+  subjectsInput: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    padding: 12,
+    width: '100%',
+    fontSize: 14,
+    fontFamily: 'Ralewayregular',
+    textAlignVertical: 'top',
+  },
+  addButton: {
+    backgroundColor: '#007AFF',
     borderRadius: 8,
     padding: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
   },
-  addClassButtonDisabled: {
-    backgroundColor: "#cccccc",
+  addButtonDisabled: {
+    backgroundColor: '#a8a8a8',
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontFamily: 'Ralewaymedium',
   },
   submitButton: {
     backgroundColor: "#3B82F6",
@@ -564,15 +681,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
   },
-  classChip: {
-    backgroundColor: "#F0F9FF",
-    borderRadius: 8,
-    padding: 8,
-    marginRight: 8,
-    marginBottom: 8,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  classChipText: {
-    fontSize: 14,
-    color: "#1E40AF",
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    fontFamily: 'Ralewaymedium',
+    color: '#666',
   },
 });
+
+export default TeachersManagementScreen;

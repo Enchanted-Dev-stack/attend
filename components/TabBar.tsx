@@ -35,7 +35,11 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       // className="absolute bottom-[30px] left-1/2 -translate-x-1/2 bg-white flex flex-row justify-between items-center gap-2 max-w-[250px] px-4 rounded-full py-[10px]"
       style={{
         position: "absolute",
-        bottom: 30,
+        // borderColor: "blue",
+        // borderWidth: 1,
+        // zIndex: 999,
+        elevation: 1,
+        bottom: 20,
         left: "50%",
         transform: [{ translateX: -125 }],
         backgroundColor: "white",
