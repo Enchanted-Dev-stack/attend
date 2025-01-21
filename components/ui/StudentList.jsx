@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f0f8ff',
-    padding: 16,
+    padding: 0,
   },
   lottie: {
     width: 200,
@@ -374,6 +374,7 @@ const styles = StyleSheet.create({
   },
   nameCell: {
     flex: 2,
+    fontFamily: 'Ralewaymedium',
   },
   rollNoCell: {
     flex: 1,
@@ -391,6 +392,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2196F3',
     textAlign: 'center',
+    fontFamily: 'Ralewaymedium',
   },
   checkmarkContainer: {
     width: 24,

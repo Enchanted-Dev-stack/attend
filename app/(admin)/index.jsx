@@ -101,10 +101,10 @@ export default function AdminPanelScreen() {
   };
 
   const menuItems = [
-    { icon: 'people', title: 'Students', color: '#007AFF', route: '/(admin)/addstudents' },
+    { icon: 'people', title: 'Add Students', color: '#007AFF', route: '/(admin)/addstudents' },
     { icon: 'school', title: 'Teachers', color: '#8B5CF6', route: '/(admin)/teachers' },
     { icon: 'book', title: 'Courses', color: '#3B82F6', route: '/(admin)/courses' },
-    { icon: 'calendar', title: 'Attendance', color: '#10B981', route: 'Attendance' },
+    { icon: 'people-outline', title: 'All Students', color: '#10B981', route: '/(admin)/students' },
     { icon: 'stats-chart', title: 'Reports', color: '#F59E0B', route: '/login' },
     { icon: 'time', title: 'Schedules', color: '#EF4444', route: 'Schedules' },
   ];
